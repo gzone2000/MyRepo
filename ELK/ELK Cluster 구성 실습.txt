@@ -11,4 +11,5 @@ ELK Cluster 구성 실습
   . id: elk01 , pwd: password
 
 
+수정해 보자
 
