@@ -1,0 +1,50 @@
+﻿Kibana Install and Explore
+
+	
+ㅇ 버젼 : kibana-6.7.2
+ㅇ VirtualBox VM : Elasticsearch-6.7.2 설치된 VM
+   - 1 CPU , 2048M Mem
+   - IP : 192.168.63.101 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+1. Kibana Download/Unzip
+
+	su - elas
+	wget https://artifacts.elastic.co/downloads/kibana/kibana-6.7.2-linux-x86_64.tar.gz
+	tar xvf kibana-6.7.2-linux-x86_64.tar.gz
+
+2. Kibana Start
+  
+  	cd kibana-6.7.2-linux-x86_64/config
+	vi kibana.yml
+	server.host: 192.168.63.101
+	elasticsearch.hosts: ["http://192.168.63.101:9200"]
+
+	cd ..
+  	bin/kibana &
+  
+3. Kibana Check
+  
+  	ps -ef | grep node
+  	netstat -na | grep LISTEN | grep 5601
+  	http://192.168.63.101:5601
+
+4. Kibana Stop
+  
+  	ps -ef | grep node
+  	kill PID	
+
+5. Kibana Explore
+  
+  	Menu > Monitoring > Turn on monitoring > Elasticsearch, Kibana 여러가지 정보/활동 확인
+  	Menu > Dev Tools >
+			GET _search
+			{
+			  "query": {
+			    "match_all": {}
+			  }
+			}
+
+
+

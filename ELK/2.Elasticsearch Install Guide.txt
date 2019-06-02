@@ -3,7 +3,7 @@
 
 ㅇ 버젼 : Elasticsearch-6.7.2
 ㅇ VirtualBox VM 
-   - 1 CPU , 1536M Mem
+   - 1 CPU , 2048M Mem
    - IP : 192.168.63.101 (Host-Only)
    - IP : 10.0.2.15 (NAT)
 
