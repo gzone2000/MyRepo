@@ -39,12 +39,13 @@
   
   	Menu > Monitoring > Turn on monitoring > Elasticsearch, Kibana 여러가지 정보/활동 확인
   	Menu > Dev Tools >
-			GET _search
-			{
-			  "query": {
-			    "match_all": {}
-			  }
-			}
+
+	GET _search
+	{
+		"query": {
+			 "match_all": {}
+		}
+	}
 
 
 

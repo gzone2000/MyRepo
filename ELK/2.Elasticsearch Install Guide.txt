@@ -8,6 +8,14 @@
    - IP : 10.0.2.15 (NAT)
 
 
+
+0. ubuntu-16.04 이미지 이용하여 VM 생성
+
+	Virtualbox > 새로 만들기 > ELK-TEST01 (Linux, Ubuntu-64bit) 
+	> 2048M , 10G HDD
+	> 네트워크 : 어댑터1 (NAT), 어댑터1 (Host-Only)
+	> ubuntu-16.04 이미지 넣고 설치
+
 1. IP 설정 및 계정 생성
 
 	sudo vi /etc/network/interfaces
@@ -100,9 +108,51 @@
 }
 
 
-
 9. Elasticsearch 웹브라우저에서 보기
 
-http://192.168.63.101:9200/
+	http://192.168.63.101:9200/
+
+
+10. 정상적으로 되었다면, 해당 상태를 이미지 복사하고 셋팅 >>  ELK-TEST02, ELK-TEST03 VM 생성
+
+	shutdown -h now
+	
+	VitualBox > ELK-TEST01 선택 > 복제 : ELK-TEST02
+	> 'MAC 주소 초기화' 체크 
+	> 완전한 복제
+
+	VitualBox > ELK-TEST01 선택 > 복제 : ELK-TEST03
+	> 'MAC 주소 초기화' 체크 
+	> 완전한 복제
+
+
+	# ELK-TEST02
+	VitualBox > ELK-TEST02 선택 > 기동
+
+	sudo hostnamectl --static set-hostname ELK02
+	ifconfig
+	sudo vi /etc/network/interfaces
+	auto enp0s8
+	iface enp0s8 inet static
+	address 192.168.63.102
+	netmask 255.255.255.0
+	
+	sudo shutdown -r now
+
+
+	# ELK-TEST03
+	VitualBox > ELK-TEST02 선택 > 기동
+
+	sudo hostnamectl --static set-hostname ELK03
+	ifconfig
+	sudo vi /etc/network/interfaces
+	auto enp0s8
+	iface enp0s8 inet static
+	address 192.168.63.103
+	netmask 255.255.255.0
+	
+	sudo shutdown -r now
+
+
 
 
