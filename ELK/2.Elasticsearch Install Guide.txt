@@ -52,6 +52,8 @@
 
 	sudo hostnamectl --static set-hostname ELK01
 	sudo sysctl -w vm.max_map_count=262144
+	sudo vi /etc/sysctl.conf
+	vm.max_map_count = 262144
 
 7. Elasticsearch start/stop
 
