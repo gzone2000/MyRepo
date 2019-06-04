@@ -1,18 +1,19 @@
-github »ç¿ë¹ı
+github ì‚¬ìš©ë²•
 
 my gihub : https://github.com/gzone2000/MyRepo.git
 
-0.git bash ¼³Ä¡
+0.git bash ì„¤ì¹˜
 https://gitforwindows.org/ 
-´Ù¿î·ÎµåÈÄ ¼³Ä¡
-Å½»ö±â¿¡¼­ ¿øÇÏ´Â Æú´õ ¼±ÅÃ > ¿À¸¥ÂÊ ¸¶¿ì½º > "git bash Here" ¼±ÅÃ
+ë‹¤ìš´ë¡œë“œí›„ ì„¤ì¹˜
+íƒìƒ‰ê¸°ì—ì„œ ì›í•˜ëŠ” í´ë” ì„ íƒ > ì˜¤ë¥¸ìª½ ë§ˆìš°ìŠ¤ > "git bash Here" ì„ íƒ
 
 
-1. github »ı¼º
+1. github ìƒì„±
 git init
 
 
-2. github »ç¿ëÇÏ±â
+2. github ì‚¬ìš©í•˜ê¸°
+git remote add origin https://github.com/gzone2000/MyRepo.git
 git pull origin master
 git status
 git add .
@@ -20,16 +21,16 @@ git commit -m "message1"
 git push origin master
 
 
-3.´Ù¸¥ github °¡Á®¿À±â
+3.ë‹¤ë¥¸ github ê°€ì ¸ì˜¤ê¸°
 
-Æú´õ »ı¼º 
+í´ë” ìƒì„± 
 git init
 git remote add origin https://github.com/memoming/memoming_gitTest
 git pull origin master
 
 
-4. github »çÀÌÆ®¿¡¼­ EditÇÏ¿© º¯°æ
-ÇØ´ç Æú´õ
+4. github ì‚¬ì´íŠ¸ì—ì„œ Edití•˜ì—¬ ë³€ê²½
+í•´ë‹¹ í´ë”
 git pull origin master
 
 
