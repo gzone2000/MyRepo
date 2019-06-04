@@ -1,0 +1,366 @@
+﻿Elasticsearch Culster Guide
+
+
+
+ㅇ VirtualBox VM : Elasticsearch-6.7.2 설치된 VM 3개 : ELK-TEST01, ELK-TEST02, ELK-TEST03
+   - 1 CPU , 2048M Mem
+   - IP : 192.168.63.101 ~ 192168.63.103 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+   * (주의) ELK-TEST02, ELK-TEST03 VM은 ELK-TEST01 VM을 복사한 VM 입니다.
+
+
+
+
+1. Elasticsearch-6.7.2 설치된 VM 3개(ELK-TEST01, ELK-TEST02, ELK-TEST03) 기동
+
+	virutalBox > ELK-TEST01 선택 > 시작
+	virutalBox > ELK-TEST02 선택 > 시작
+	virutalBox > ELK-TEST03 선택 > 시작
+
+
+2. Elasticsearch config 수정 및 기동
+
+	# ELK01
+
+	su - elas
+	cd elasticsearch-6.7.2/
+	vi config/elasticsearch.yml
+	cluster.name: my-application
+	node.name: ${HOSTNAME}
+	network.host: ["192.168.63.101"]
+	discovery.zen.ping.unicast.hosts: ["192.168.63.101", "192.168.63.102","192.168.63.103"]
+	node.master: true
+	node.data: true
+
+	./stop.sh
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+
+	# ELK02
+
+	su - elas
+	cd elasticsearch-6.7.2/
+	vi config/elasticsearch.yml
+	cluster.name: my-application
+	node.name: ${HOSTNAME}
+	network.host: ["192.168.63.102"]
+	discovery.zen.ping.unicast.hosts: ["192.168.63.101", "192.168.63.102","192.168.63.103"]
+	node.master: true
+	node.data: true
+
+	rm -rf /ELK/data/nodes/*
+
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+
+	# ELK03
+
+	su - elas
+	cd elasticsearch-6.7.2/
+	vi config/elasticsearch.yml
+	cluster.name: my-application
+	node.name: ${HOSTNAME}
+	network.host: ["192.168.63.103"]
+	discovery.zen.ping.unicast.hosts: ["192.168.63.101", "192.168.63.102","192.168.63.103"]
+	node.master: true
+	node.data: true
+
+	rm -rf /ELK/data/nodes/*
+
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+
+3. Cluster 상태 확인
+
+	http://192.168.63.101:9100/
+	> 3개 노드(ELK01, ELK02, ELK03) 보임
+	> 'pythonbooks' 인덱스에 대해 자동으로 replica 복사본 만듬
+
+
+4. Cluster 요약
+
+	http://192.168.63.101:5601 > Dev Tools
+	
+	GET /_cluster/health
+	  "status" : "green",
+	  "number_of_nodes" : 3,
+	  "number_of_data_nodes" : 3,
+	  "active_primary_shards" : 14,
+	  "active_shards" : 28,
+
+     
+5. Cluster 설정 정보
+
+1) Cluster
+     
+	GET _cluster/state
+     
+	"version" : 347,  >> Version 이 가장 낮은 Node가 Master Node 다운 시 Master로 됨. 
+
+2) Node
+     
+	전체 노드
+	GET _nodes
+     
+	특정 IP 노드
+	GET _nodes/192.168.63.101,192.168.63.102
+   
+	특정 노트 ID
+	GET _nodes/3y2FAotUS12cMYZ9TYY8_g
+     
+	호출받은 노드
+	GET _nodes/_local
+     
+	"os", "process", "jvm", "thread_pool", "settings"(elasticsearch.yml 설정)
+
+3) Cat API
+
+	Console 출력 기반 API
+
+	GET _cat
+	/_cat/allocation
+	/_cat/shards
+	/_cat/shards/{index}
+	/_cat/master
+	/_cat/nodes
+	/_cat/tasks
+	/_cat/indices
+
+	GET _cat/master?v
+	id                     host           ip             node
+	3y2FAotUS12cMYZ9TYY8_g 192.168.63.101 192.168.63.101 ELK01
+
+3) Rolling Restart : 장애 아닌 상황에서 재기동 시 샤드 재분배로 인해 생기는 부하 고려
+
+	A. Cluster 상태 확인
+	http://192.168.63.101:9100/
+
+	B. 노드 중에 ELK02 elasticseach 정지
+	./stop.sh
+
+	C. Cluster 상태 확인
+	http://192.168.63.101:9100/
+	> ELK02 노드 빠지고
+	> ELK01, ELK03에서 Replica -> Primary shard로 되고 , Replica shard 생성
+
+	D. ELK02 elasticseach 기동
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+	E. Cluster 상태 확인
+	http://192.168.63.101:9100/
+	> ELK02 Join되고
+	> pythonbooks 인덱스등의 Shard가 분산 배치됨
+
+	F. 지금부터 정상적인 패치 작업을 할테니 재분배 하지 마세요!!
+
+	PUT _cluster/settings
+	{
+		"transient" : {
+			"cluster.routing.allocation.enable" : "none"
+		}
+	}
+     
+	G. ELK03 Elasticsearch 정지
+	./stop.sh
+
+	H. Cluster 상태 확인
+	http://192.168.63.101:9100/
+	> ELK03 Unassigned 상태되고
+	> refresh 계속 해도 shard 변동없고 재분배 일어나지 않음
+
+	I. ELK03 elasticseach 기동
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+	J. Cluster 상태 확인
+	http://192.168.63.101:9100/
+	> 새로 ELK03 Join 됨.
+	> 위의 Unassigned 상태의 노드는 계속 남아 있음. 
+	> Shard 재분배 없이 그대로 있음
+     
+	K. 패치 완료했고 이제 장애 발생시 자동 재분배 하세요.
+
+	PUT _cluster/settings
+	{
+		"transient" : {
+			"cluster.routing.allocation.enable" : "all"
+		}
+	}
+
+	L. Cluster 상태 확인
+	http://192.168.63.101:9100/
+	> 위의 Unassigned 상태의 노드가 ELK03 노드로 변하게 되고 
+	> 패치 작업하기 전의 Shard 상태로 됨.
+
+
+4) Dynamic index settings
+ 
+	number_of_replicas - 운영중에 리플리카 샤드 갯수를 변경
+	>> number_of_shards는 Static 설정으로 변경 불가
+ 
+	GET pythonbooks/_settings
+        "number_of_shards" : "5",
+        "number_of_replicas" : "1",
+
+	PUT pythonbooks/_settings
+	{
+		"index" : {
+			"number_of_replicas" : 2
+		}
+	}
+
+	Cluster 상태 확인
+	http://192.168.63.101:9100/
+
+
+5) refresh_interval : 디폴트 1초
+ 
+	새로운 문서가 들어오면 메모리 버퍼에 넣고 인덱싱 수행(메모리 버퍼에 있는 동안 검색 안됨) 
+	> refresh_interval 1초후에 파일시스템 캐쉬에 있는 새로운 Segment로 보내짐
+	> 실시간 조회 필요한 경우라면 refresh_interval 1초로 하고
+	> 실시간 아니라면 refresh_interval 30초 이상으로 하면 성능 향상
+ 
+	PUT pythonbooks/_settings
+	{
+		"index" : {
+			"refresh_interval" : "30s"
+		}
+	}
+     
+
+6) Template
+
+	인덱스가 생성될 때 사용자 정의된 세팅으로 자동 매핑
+     
+	인덱스가 생성될 때 패턴이 매칭되는 인덱스는 해당 정의 사용
+	order가 높은 번호가 낮은 번호를 override & merge
+
+	A. test1 인덱스 생성
+	PUT /test1/_doc/1
+	{
+	  "user" : "test1",
+	  "post_date" : "2019-05-26T19:39:00",
+	  "message" : "trying out Elasticsearch"
+	}
+
+	B. test1 인덱스 확인
+	GET /test1/_settings
+        "number_of_shards" : "5",
+        "number_of_replicas" : "1",
+
+	C. template 생성
+	PUT _template/mytemplate
+	{
+		"index_patterns": ["te*", "bar*"],
+		"order" : 0,
+		"settings": {
+			"number_of_shards": 1
+		}
+	}
+
+	>> 인덱스 이름이 te , bar 처럼 되었으면 primary shard 1개만 만들어라
+
+	D. test2 인덱스 생성
+	PUT /test2/_doc/1
+	{
+	  "user" : "test2",
+	  "post_date" : "2019-05-26T19:39:00",
+	  "message" : "trying out Elasticsearch"
+	}
+
+	E. test2 인덱스 확인
+	GET /test2/_settings
+        "number_of_shards" : "1",
+        "number_of_replicas" : "1",
+
+	F.test1, test2 인덱스 확인
+	http://192.168.63.101:9100/
+
+
+7) Reindex : 인덱스를 복사하는 API
+
+	POST _reindex
+	{
+		"source": {
+			"index": "pythonbooks"
+		},
+		"dest": {
+			"index": "pythonbooks_bak"
+		}
+	}
+
+
+8) aliases : 인덱스에 별칭을 부여하는 API
+
+	POST /_aliases
+	{
+		"actions": [
+			{ "add": { "indices": ["pythonbooks", "pythonbooks_bak"], "alias":"pythonbook" } }
+		]
+	}
+
+	GET /pythonbooks/_search
+	GET /pythonbook/_search
+
+
+9) Index open/close
+	
+	close 인덱스는 read/write 불가
+	클러스터 전체 샤드에서 제외
+	라우팅 disabled
+
+	POST pythonbooks/_close
+	--> twitter 인덱스 close
+
+	POST pythonbooks/_open
+	--> twitter 인덱스 open
+
+
+10) Hot-data / Warm-data
+
+	## 각 노드가 Hot/Warm 중 무엇으로 운영 할지 설정
+	> Hot : 좋은 장비 : SSD 있는 경우 
+
+
+	A. ELK02 
+	./stop.sh
+	vi config/elasticsearch.yml 
+	node.attr.box_type: hot
+
+	B. student 형태의 Index를 hot으로 설정하는 템플릿 생성
+	PUT _template/hottemplate 
+	{ 
+		"index_patterns": ["student*"], 
+		"order" : 0, 
+		"settings": { 
+			"number_of_shards": 1, 
+			"index.routing.allocation.require.box_type" : "hot" 
+		} 
+	}	
+
+	C. student1 인덱스 생성
+	PUT /student1/_doc/1
+	{
+	  "user" : "student1",
+	  "post_date" : "2019-05-26T19:39:00",
+	  "message" : "trying out Elasticsearch"
+	}
+
+	C. Index 별로 hot 설정
+
+	PUT test1/_settings 
+	{ 
+		"index.routing.allocation.require.box_type" : "hot" 
+	}
+
+
+	D. student1, test1 인덱스 확인
+	http://192.168.63.101:9100/
+
+
+

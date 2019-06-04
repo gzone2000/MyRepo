@@ -8,6 +8,13 @@
    - IP : 10.0.2.15 (NAT)
 
 
+0. Elasticsearch 기동
+
+	su - elas
+	cd  elasticsearch-6.7.2/
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
 1. Kibana Download/Unzip
 
 	su - elas
