@@ -1,94 +1,187 @@
+Filebeat Install and Use
 
-# Filebeat Install
 
-## Filebeat Install
+
+ㅇ 버젼 : logstash-6.7.2
+ㅇ VirtualBox VM : ELK-TEST02
+   - 1 CPU , 2048M Mem, 20G HDD
+   - IP : 192.168.63.102 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+
+1. Filebeat Install / Config / Use
+
+	A. Filebeat Install
 
 	su - elas
 	wget https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-6.7.2-linux-x86_64.tar.gz
   	tar -zxvf filebeat-6.7.2-linux-x86_64.tar.gz
 
-## Filebeat modules.d use
 
-	  mv filebeat-6.7.2-linux-x86_64 filebeat6
-	  cd /home/elas/filebeat6
-	  wget https://github.com/iamtakgun/Start-Elastic-Stack/raw/master/sample/apache-access.log
-	  
+	B. Filebeat modules.d use
 
-	  ./filebeat -c ./filebeat.yml modules enable apache2
-
-	  ./filebeat -c ./filebeat.yml modules list
+	mv filebeat-6.7.2-linux-x86_64 filebeat6
+	cd /home/elas/filebeat6
+	wget https://raw.githubusercontent.com/gzone2000/MyRepo/master/ELK/10.sample-apachelog.txt
+	
+	./filebeat -c ./filebeat.yml modules list
+	./filebeat -c ./filebeat.yml modules enable apache2
+	./filebeat -c ./filebeat.yml modules list
   
   	vi modules.d/apache2.yml
-  
 	  - module: apache2
 	  # Access logs
 	  access:
 	    enabled: true
-	    # Set custom paths for the log files. If left empty,
-	    # Filebeat will choose the paths depending on your OS.
-	    var.paths: ["/home/elas/filebeat6/apache-access.log"]
+	    var.paths: ["/home/elas/filebeat6/10.sample-apachelog.txt"]
+
 	  # Error logs
 	  error:
 	    enabled: false
-	    # Set custom paths for the log files. If left empty,
-	    # Filebeat will choose the paths depending on your OS.
 	    #var.paths:
   
 
-            vi filebeat.yml
-	  
+	C. kibana, Elasticsearch Setting in the filebeat.yml
+
+	vi filebeat.yml
+
+	  path: ${path.config}/modules.d/*.yml
+	  setup.template.settings:
+	   index.number_of_shards: 3
+
 	  # Kibana
-	  host: "localhost:5601"
+	  host: "192.168.63.101:5601"
 
-              #-------------------------- Elasticsearch output ------------------------------
-output.elasticsearch:
-  hosts: ["localhost:9200"]
+	  output.elasticsearch:
+	    hosts: ["192.168.63.101:9200","192.168.63.102:9200"]
+
+	  #output.logstash:
+	    #hosts: ["localhost:5044"]
 
   
-           # kibana, Elasticsearch Setting
-	  ./filebeat -e -c ./filebeat.yml setup --modules apache2
-	  --> kibana에게 시각화 포맷 그려달라고 함. 그럼 kibana > dashboard에 보면 여러가지 시각화 포맷 보임.
+	D. filebeat Start
 
-	  ./filebeat -e -c ./filebeat.yml
+	./filebeat -e -c ./filebeat.yml setup --modules apache2
+	> kibana에게 시각화 포맷 자동 생성
+	> kibana > dashboard > 여러가지 시각화 포맷 보임
+	> kibana > Management > Kibana > Index patterns > filebeat-* 보임
+
+	./filebeat -e -c ./filebeat.yml
   
-          # 1만건의 apache-log 데이터 다시 읽을려면
-             cd /home/elas/filebeat6/data
-	rm -f registry
 
-	GET filebeat-6.7.2-*/_count
+	E. filebeat에 데이터 넣기
+	cd /home/elas/filebeat6
+	cp 10.sample-apachelog.txt 10.sample-apachelog.txt.copy
+	cat 10.sample-apachelog.txt.copy >> 10.sample-apachelog.txt
+	cat 10.sample-apachelog.txt.copy >> 10.sample-apachelog.txt
+
+
+	F. Kibana에서 입력된 데이터 확인
+
+	Kibana > Dev Tools 
+	GET filebeat-*/_count
+
+	Kibana > logs
+
+	Kibana > Discover > 입력데이터가 2015년도 자료 이기에 2015년 포함해서 조회
+
+	Kibana > Dashboard > [Filebeat Apache2] Access and error logs
 
 
 
+2. Filebeat + logstash use
 
-  # Filebeat + logstash use
-  
-  ## logstash 수정
-	  input{
-	  	beats{
-		    port => 5044
+	A. logstash 수정  
+
+	su - logst
+	cd logstash-6.7.2/
+
+	vi config/beat-logstash.yml 
+	input{
+		beats{
+			port => 5044
 		}
-	  }
+	}
+
+	filter {
+		grok {
+			match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+		}
+  
+		mutate{
+			remove_field => [ "auth", "ident" ]
+			convert => { "bytes" => "integer" }
+			convert => { "response" => "integer" }
+		}
+
+		date{
+			match => ["timestamp","dd/MMM/yyyy:HH:mm:SS Z"]
+			target => "timestamp"
+		}
+
+		geoip {
+			source => "clientip"
+		}
+	}
 	  
 	output {
-        		elasticsearch{
-		            hosts => ["192.168.63.103:9200"]
-		            index => "filebeat-logstash-%{+yyyy-mm-dd}"
+		elasticsearch{
+			hosts => ["192.168.63.101:9200","192.168.63.102:9200"]
+			index => "filebeat-logstash-%{+yyyy-mm-dd}"
 		}
     
-    	    stdout{}
-    	}
+		stdout{}
+	}
+
+	bin/logstash -f config/beat-logstash.yml 
 
 
-  ## Filebeat 수정	
-  	output.elasticsearch 주석처리
-	output.logstash 활성화
+	B. Filebeat 수정	
 
-#output.elasticsearch:
-  # Array of hosts to connect to.
-  #hosts: ["192.168.63.103:9200"]
+	su - elas
+	cd /home/elas/filebeat6
 
-output.logstash:
-  # The Logstash hosts
-  hosts: ["192.168.63.103:5044"]
+	vi filebeat.yml
+	  #output.elasticsearch:
+	    #hosts: ["192.168.63.101:9200","192.168.63.102:9200"]
 
- ./filebeat -e -c ./filebeat.yml
+	  output.logstash:
+	    hosts: ["192.168.63.102:5044"]
+
+  	vi modules.d/apache2.yml
+	  - module: apache2
+	  # Access logs
+	  access:
+	    enabled: true
+	    var.paths: ["/home/elas/filebeat6/10.sample-apachelog.txt"]
+
+	  # Error logs
+	  error:
+	    enabled: false
+	    #var.paths:
+
+ 	./filebeat -e -c ./filebeat.yml
+
+
+	C. filebeat에 데이터 넣기
+
+	su - elas
+	cd /home/elas/filebeat6
+	cp 10.sample-apachelog.txt 10.sample-apachelog.txt.copy
+	cat 10.sample-apachelog.txt.copy >> 10.sample-apachelog.txt
+	cat 10.sample-apachelog.txt.copy >> 10.sample-apachelog.txt
+
+
+	D. Kibana에서 입력된 데이터 확인
+
+	Kibana > Dev Tools 
+	GET filebeat-*/_count
+
+	Kibana > Management > Create index pattern
+	> filebeat-* , @timestamp 
+
+	Kibana > Discover > filebeat-* 선택
+
+
+
