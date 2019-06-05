@@ -1,0 +1,134 @@
+Logstash Simple Test
+
+
+
+ㅇ 버젼 : logstash-6.7.2
+ㅇ VirtualBox VM : ELK-TEST02
+   - 1 CPU , 2048M Mem, 20G HDD
+   - IP : 192.168.63.102 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+
+
+1. Logstash stdin input
+	
+	su - logst
+	cd logstash-6.7.2/
+
+	vi config/jvm.options
+	-Xms400m
+	-Xmx400m
+
+	vi config/logstash-test1.conf
+	input {
+	  stdin{}
+	}
+	output {
+	  stdout{}
+	}
+	
+	bin/logstash -f config/logstash-test1.conf
+
+	입력:	TEST Logstash
+	출력:	{
+		      "@version" => "1",
+		    "@timestamp" => 2019-06-05T00:33:41.545Z,
+		       "message" => "TEST Logstash",
+		          "host" => "ELK02"
+		}
+
+	
+2. Logstash FILE input
+
+	# 터미널 1
+
+	su - logst
+	cd logstash-6.7.2/
+
+	vi config/logstash-test2.conf
+	input {
+	  file {
+	    path => "/home/logst/logstash-6.7.2/echo.txt"
+	    start_position => "beginning"
+	  }
+	}
+	
+	filter {
+	}
+
+	output {
+	  stdout{}
+	}
+	
+	bin/logstash -f config/logstash-test2.conf
+	
+
+	# 터미널 2
+
+	su - logst
+	cd logstash-6.7.2/	
+	echo 'Hello Elasticsearch' > echo.txt
+	echo 'Hello Logstash' > echo.txt
+	echo 'Hello Kibana' > echo.txt
+	echo 'Hello Beats' > echo.txt
+
+
+3. Logstash .sincedb 확인
+
+	* inputfile을 사용하게 되면 sincedb 파일에 어디까지 읽었는지 정보를 기록
+	* sincedb 정보
+	- inode 번호
+	- FS의 major device number
+	- FS의 minor device number
+	- 파일내의 현재 byte offset
+	- 최근 수정한 시점의 timestamp
+	- 파일 경로
+
+	cd /home/logst/logstash-6.7.2/data/plugins/inputs/file
+	ls -la
+	cat .sincedb_1a0f5de8e51cc489d0251b9de5126892
+	681718 0 2049 12 1559695319.044734 /home/logst/logstash-6.7.2/echo.txt
+
+
+4. Logstash FILE input
+
+	* start_position => "end" : 파일에 계속해서 데이터가 추가될 경우 사용하자
+
+	# 터미널 1
+
+	su - logst
+	cd logstash-6.7.2/
+
+	vi config/logstash-test2.conf
+	input {
+	  file {
+	    path => "/home/logst/logstash-6.7.2/echo.txt"
+	    start_position => "end" # default
+	  }
+	}
+	
+	filter {
+	}
+
+	output {
+	  stdout{}
+	}
+	
+	bin/logstash -f config/logstash-test2.conf
+	
+
+	# 터미널 2
+
+	su - logst
+	cd logstash-6.7.2/	
+	echo 'Hello Elasticsearch1' >> echo.txt
+	echo 'Hello Logstash1' >> echo.txt
+	echo 'Hello Kibana1' >> echo.txt
+	echo 'Hello Beats1' >> echo.txt
+
+	echo 'Hello Elasticsearch2' >> echo.txt
+	echo 'Hello Logstash2' >> echo.txt
+	echo 'Hello Kibana2' >> echo.txt
+	echo 'Hello Beats2' >> echo.txt
+

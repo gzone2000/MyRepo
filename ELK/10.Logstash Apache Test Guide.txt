@@ -1,0 +1,255 @@
+
+## Apache Access Log Download
+    
+    su - logst
+    cd /home/logst/logstash-6.7.2
+    mkdir log_data
+    cd log_data
+    
+    vi apache-sample.log
+    50.16.19.13 - - [17/May/2015:10:05:10 +0000] "GET /blog/tags/puppet?flav=rss20 HTTP/1.1" 200 14872 "http://www.semicomplete.com/blog/tags/puppet?flav=rss20" "Tiny Tiny RSS/1.11 (http://tt-rss.org/)"
+    
+    wget https://github.com/iamtakgun/Start-Elastic-Stack/raw/master/sample/apache-access.log
+    
+    
+## logstash-apache.conf input config
+    
+    cd /home/logst/logstash-6.7.2
+    
+    vi logstash-apache.conf
+    
+    input {
+      file {
+        path => "/home/logst/logstash-6.7.2/log_data/apache-sample.log"
+        start_position => "beginning"
+        sincedb_path => "/dev/null"
+      }
+    }
+    
+    output {
+        stdout{}
+    }
+
+## Logstash Start
+
+    bin/logstash -f ./logstash-apache.conf --config.reload.automatic
+    
+    * --config.reload.automatic : 재기동 없이 conf 반영 
+   
+* log 출력 
+{
+       "message" => "50.16.19.13 - - [17/May/2015:10:05:10 +0000] \"GET /blog/tags/puppet?flav=rss20 HTTP/1.1\" 200 14872 \"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\" \"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+          "host" => "TEST03",
+    "@timestamp" => 2019-05-31T07:17:07.602Z,
+          "path" => "/home/logst/logstash-6.7.2/log_data/apache-sample.log",
+      "@version" => "1"
+}
+
+
+
+
+## logstash-apache.conf filter +grok config
+
+    filter {
+      grok {
+        match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+      }
+    }
+
+* log 출력 
+{
+      "timestamp" => "17/May/2015:10:05:10 +0000",
+       "response" => "200",
+     "@timestamp" => 2019-05-31T07:18:39.943Z,
+    "httpversion" => "1.1",
+           "verb" => "GET",
+        "request" => "/blog/tags/puppet?flav=rss20",
+       "@version" => "1",
+        "message" => "50.16.19.13 - - [17/May/2015:10:05:10 +0000] \"GET /blog/tags/puppet?flav=rss20 HTTP/1.1\" 200 14872 \"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\" \"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+           "auth" => "-",
+       "clientip" => "50.16.19.13",
+          "ident" => "-",
+       "referrer" => "\"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\"",
+          "bytes" => "14872",
+          "agent" => "\"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+           "path" => "/home/logst/logstash-6.7.2/log_data/apache-sample.log",
+           "host" => "0.0.0.0"
+}
+
+
+
+## logstash-apache.conf filter +mutate remove_field config
+
+    filter {
+      grok {
+        match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+      }
+  
+      mutate{
+        remove_field => [ "auth", "ident" ]
+      }
+    }
+    
+
+* log 출력 :  auth 와 ident 필드 삭제
+{
+      "timestamp" => "17/May/2015:10:05:10 +0000",
+       "response" => "200",
+     "@timestamp" => 2019-05-31T07:19:54.792Z,
+    "httpversion" => "1.1",
+           "verb" => "GET",
+        "request" => "/blog/tags/puppet?flav=rss20",
+       "@version" => "1",
+        "message" => "50.16.19.13 - - [17/May/2015:10:05:10 +0000] \"GET /blog/tags/puppet?flav=rss20 HTTP/1.1\" 200 14872 \"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\" \"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+       "clientip" => "50.16.19.13",
+       "referrer" => "\"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\"",
+          "bytes" => "14872",
+          "agent" => "\"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+           "path" => "/home/logst/logstash-6.7.2/log_data/apache-sample.log",
+           "host" => "0.0.0.0"
+}
+
+
+
+## logstash-apache.conf filter +mutate convert config
+
+     filter {
+      grok {
+        match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+      }
+  
+      mutate{
+        remove_field => [ "auth", "ident" ]
+        convert => { "bytes" => "integer" }
+        convert => { "response" => "integer" }
+      }
+     }
+ 
+
+* log 출력 :  auth 와 ident 필드 삭제 그리고 bytes 필드와 response 필드를 integer로 
+{
+      "timestamp" => "17/May/2015:10:05:10 +0000",
+       "response" => 200,
+     "@timestamp" => 2019-05-31T07:21:40.055Z,
+    "httpversion" => "1.1",
+           "verb" => "GET",
+        "request" => "/blog/tags/puppet?flav=rss20",
+       "@version" => "1",
+        "message" => "50.16.19.13 - - [17/May/2015:10:05:10 +0000] \"GET /blog/tags/puppet?flav=rss20 HTTP/1.1\" 200 14872 \"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\" \"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+       "clientip" => "50.16.19.13",
+       "referrer" => "\"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\"",
+          "bytes" => 14872,
+          "agent" => "\"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+           "path" => "/home/logst/logstash-6.7.2/log_data/apache-sample.log",
+           "host" => "0.0.0.0"
+}
+ 
+
+
+
+
+
+## logstash-apache.conf filter +date config  
+  
+    filter {
+      grok {
+        match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+      }
+  
+      mutate{
+        remove_field => [ "auth", "ident" ]
+        convert => { "bytes" => "integer" }
+        convert => { "response" => "integer" }
+      }
+  
+      date{
+        match => ["timestamp","dd/MMM/yyyy:HH:mm:SS Z"]
+        target => "timestamp"
+      }
+    }
+
+
+## logstash-apache.conf filter +geoip config 
+
+    filter {
+      grok {
+        match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+      }
+  
+      mutate{
+        remove_field => [ "auth", "ident" ]
+        convert => { "bytes" => "integer" }
+        convert => { "response" => "integer" }
+      }
+  
+      date{
+        match => ["timestamp","dd/MMM/yyyy:HH:MM:SS Z"]
+        target => "timestamp"
+      }
+  
+      geoip {
+        source => "clientip"
+      }
+    }
+    
+    * geoip : Geolite2 City DBMS(Maxmind Product)
+
+
+* log 출력 :  auth 와 ident 필드 삭제 그리고 bytes 필드와 response 필드를 integer로 , 그리고 date 포맷 변경, 그리고 clientip에 대해 Geoip로 설정
+{
+      "timestamp" => 2015-05-17T10:05:00.100Z,
+       "response" => 200,
+     "@timestamp" => 2019-05-31T07:23:16.214Z,
+    "httpversion" => "1.1",
+           "verb" => "GET",
+        "request" => "/blog/tags/puppet?flav=rss20",
+       "@version" => "1",
+        "message" => "50.16.19.13 - - [17/May/2015:10:05:10 +0000] \"GET /blog/tags/puppet?flav=rss20 HTTP/1.1\" 200 14872 \"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\" \"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+       "clientip" => "50.16.19.13",
+       "referrer" => "\"http://www.semicomplete.com/blog/tags/puppet?flav=rss20\"",
+          "bytes" => 14872,
+          "agent" => "\"Tiny Tiny RSS/1.11 (http://tt-rss.org/)\"",
+           "path" => "/home/logst/logstash-6.7.2/log_data/apache-sample.log",
+           "host" => "0.0.0.0"
+}
+
+
+
+
+
+
+## logstash-apache.conf output config
+
+    output {
+        elasticsearch{
+            hosts => ["localhost:9200"]
+            index => "apache-access-logstash-%{+yyyy-mm-dd}"
+        }
+        
+        stdout{}
+    }
+
+
+
+    
+## logstash-apache.conf access log 
+    
+    #path => "/home/logst/logstash-6.7.2/log_data/apache-sample.log"
+    path => "/home/logst/logstash-6.7.2/log_data/apache-access.log"
+
+
+    
+## kibana에서 데이터 확인
+
+    GET apache-*/_count
+
+{
+  "count" : 625,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "skipped" : 0,
+    "failed" : 0
+  }
+}
+    

@@ -1,0 +1,46 @@
+﻿Logstash Install
+
+
+
+ㅇ 버젼 : logstash-6.7.2
+ㅇ VirtualBox VM : ELK-TEST02
+   - 1 CPU , 2048M Mem, 20G HDD
+   - IP : 192.168.63.102 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+
+
+1. 계정 생성
+
+	sudo useradd logst -m -s /bin/bash
+	sudo passwd logst
+
+2. sudo 권한
+
+	sudo vi /etc/sudoers
+	logst   ALL=(ALL:ALL) ALL
+	
+3. JAVA Download/Unzip : Open JDK8
+	
+	su - logst
+	sudo apt-get install unzip
+	unzip jdk-8u212-ojdkbuild-linux-x64.zip
+	mv jdk-8u212-ojdkbuild-linux-x64 jdk8
+	mv jdk8/ /usr/local
+	/usr/local/jdk8/bin/java -version
+	
+4. JAVA_HOME 설정
+
+	vi .profile
+	export JAVA_HOME=/usr/local/jdk8
+	
+	source .profile
+	$JAVA_HOME/bin/java -version
+
+5. Logstash Install
+
+	wget https://artifacts.elastic.co/downloads/logstash/logstash-6.7.2.tar.gz
+  	tar -zxvf logstash-6.7.2.tar.gz
+
+
