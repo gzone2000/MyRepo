@@ -1,40 +1,123 @@
+Metricbeat Use
 
-# Metricbeat Use
 
-## Metricbeat  Install
 
+ㅇ 버젼 : metricbeat-6.7.2
+ㅇ VirtualBox VM : ELK-TEST01, ELK-TEST02
+   - 1 CPU , 2048M Mem, 20G HDD
+   - IP : 192.168.63.101~192.168.63.101 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+
+
+# ELK-TEST01(192.168.63.101) 기준
+
+
+1. Metricbeat  Install
+
+	su - elas
 	wget https://artifacts.elastic.co/downloads/beats/metricbeat/metricbeat-6.7.2-linux-x86_64.tar.gz
   	tar -zxvf metricbeat-6.7.2-linux-x86_64.tar.gz
 
-## Metricbeat modules.d list Check
 
-	  metricbeat -c ./metricbeat.yml modules list
+2. Metricbeat modules.d list Check
 
-## Metricbeat System ?곗씠???섏쭛
+	mv metricbeat-6.7.2-linux-x86_64/ metricbeat
+	cd metricbeat/
+	./metricbeat -c ./metricbeat.yml modules list
+	Enabled:
+	system
+
+	Disabled:
+	apache
+	docker
+
+	 ls -l modules.d/
+	-rw-r--r-- 1 elas elas  241  4월 29 17:15 apache.yml.disabled
+	-rw-r--r-- 1 elas elas  638  4월 29 17:15 docker.yml.disabled
+	-rw-r--r-- 1 elas elas  773  4월 29 17:15 system.yml
+
+	cat modules.d/system.yml
+
+
+3. Metricbeat config 수정
+
+	vi metricbeat.yml
+	path: ${path.config}/modules.d/*.yml
+
+	setup.template.settings:
+	  index.number_of_shards: 1
+
+	setup.kibana:
+	  host: "192.168.63.101:5601"
+
+	output.elasticsearch:
+	  hosts: ["192.168.63.101:9200","192.168.63.102:9200"]
+
+	#output.logstash:
+	  #hosts: ["localhost:5044"]
+
+
+4. Metricbeat System 데이터 수집
 	  
 	  ./metricbeat -e -c ./metricbeat.yml
 
-## Kibana Dashboard ?앹꽦
 
-  	./metricbeat -c ./metricbeat.yml setup --dashboards
+5. Kibana Dashboard 생성
+
+  	./metricbeat -c ./metricbeat.yml setup --dashboards   # 1번만 해도 됨
+
+	Kibana > Dashboard > [Metricbeat Apache] Overview 같은 대쉬보드 자동 생성
 
 
-## Apache Install / Start
+6. Apache Install / Start
 	
+	sudo su -
 	sudo apt-get update
 	sudo apt-get install apache2
 	
-	systemctl [status,stop,start] apache2
-	
+	systemctl start apache2
+	systemctl status apache2	
+
 	ps -ef | grep apache2
 	netstat -na | grep LISTEN | grep 80
-	
-## Metricbeat Apache ?ㅼ젙
 
-	./metricbeat -c ./metricbeat.yml modules [enable,disable] apache
+	
+7. Metricbeat Apache 설정
+
+	su - elas
+	cd metricbeat/
+	./metricbeat -c ./metricbeat.yml modules enable apache
 	./metricbeat -c ./metricbeat.yml modules list
-	
-## Metricbeat Apache ?곗씠???섏쭛
+
+	vi modules.d/apache.yml
+	  hosts: ["http://192.168.63.101"]
+
+
+8. Metricbeat Apache 데이터 수집
 	  
-	  ./metricbeat -e -c ./metricbeat.yml
+	./metricbeat -e -c ./metricbeat.yml
 	
+	http://192.168.63.101/  > 여러번 refresh
+
+	Kibana > Management > Kibana > Index Patterns > metricbeat-* 패턴 확인
+	Kibana > Discover > apache
+	Kibana > Discover > cpu
+	Kibana > Discover > memory
+
+	Kibana > Dashboard > [Metricbeat Apache] Overview
+	Kibana > Dashboard > [Metricbeat System] Overview
+
+
+
+
+
+# ELK-TEST02(192.168.63.102) 
+
+위의 # ELK-TEST01와 똑같이 진행하되 단, IP만 변경해서 하면 됨.
+
+
+
+
+
