@@ -2,6 +2,12 @@ ELK+Redis Use Guide
 
 
 
+ㅇ 목적 : 여러개의 logstash에서 들어오는 많은 데이터를 중간에 redis를 통해 버퍼링하여 안정적으로 데이터 받기
+ㅇ 흐름도 
+    - logstash -> redis -> logstash -> elasticsearch -> kibana
+    - LK-TEST01 : kibana + elasticsearch + logstash 
+    - LK-TEST02 : apache + logstash + redis
+
 ㅇ 버젼 : metricbeat-6.7.2
 ㅇ VirtualBox VM : ELK-TEST01, ELK-TEST02
    - 1 CPU , 2048M Mem, 20G HDD
@@ -11,9 +17,10 @@ ELK+Redis Use Guide
 
 
 
+
 # ELK-TEST01(192.168.63.101) 
 
-1. Kibana + Elasticsearch + Logstash + Redis 기동
+1. Kibana + Elasticsearch + Logstash  기동
 
 	A. 재기동
 
@@ -69,10 +76,9 @@ ELK+Redis Use Guide
 			port => 6379
 			codec => "json"
 			data_type => "list"
-			key => "logstash"
+			key => "logstash"   # name of a Redis list or channel . required setting
 		}
 	}
-
 	output {
 		elasticsearch {
 			hosts => [ "192.168.63.101:9200" ]
@@ -91,7 +97,7 @@ ELK+Redis Use Guide
 # ELK-TEST02(192.168.63.102) 
 
 
-1. Logstash + Redis + apache 기동
+1. Logstash + Redis + Apache 기동
 
 	A. 재기동
 
@@ -113,6 +119,8 @@ ELK+Redis Use Guide
 	sudo systemctl start redis-server
 	sudo systemctl status redis-server
 
+	redis-cli monitor 
+
 
 	C. apache Start
 
@@ -122,13 +130,10 @@ ELK+Redis Use Guide
 
 	D. logstash Install & Start
 	
-	sudo useradd logst -m -s /bin/bash
-	sudo passwd logst
-
-	sudo vi /etc/sudoers
-	logst   ALL=(ALL:ALL) ALL
-
-	su - logst
+	* apache 로그는 root 권한으로 만들어 지므로 
+	해당 파일을 logstash가 읽으려면 root 권한이 필요해 logstash를 root 실행해야 함
+	
+	sudo su -
 	vi .profile
 	export JAVA_HOME=/usr/local/jdk8
 	
@@ -141,16 +146,14 @@ ELK+Redis Use Guide
 	cd logstash-6.7.2/
 
 	vi config/jvm.options
-	-Xms400m
-	-Xmx400m
+	-Xms1g
+	-Xmx1g
 
 	vi config/logstash-redis2.conf
 	input {
 		file {
 			path => "/var/log/apache2/*.log"
-			#codec => "json"
-			type => "logback"
-			#sincedb_path => "/dev/null"
+			type => "use-redis"
 		}
 	}
 	filter {
@@ -163,7 +166,7 @@ ELK+Redis Use Guide
 			host => "192.168.63.102"
 			port => 6379
 			data_type => "list"
-			key => "logstash"
+			key => "logstash"    # name of a Redis list or channel . required setting
 		}
 		stdout{}
 	}
@@ -171,9 +174,67 @@ ELK+Redis Use Guide
 	bin/logstash -f config/logstash-redis2.conf --config.reload.automatic
 
 
-	E. apache 접속 및 여러번 refresh
+	E. apache 접속 및 여러번 refresh 계속 시도
 
 	http://192.168.63.102/
+
+
+	F. log 확인
+
+	1)  ELK-TEST02 > bin/logstash Output 로그
+
+	{
+	           "type" => "use-redis",
+	       "response" => "304",
+	        "request" => "/icons/ubuntu-logo.png",
+	       "referrer" => "\"http://192.168.63.102/\"",
+	      "timestamp" => "06/Jun/2019:20:43:38 +0900",
+	     "@timestamp" => 2019-06-06T11:43:39.113Z,
+	    "httpversion" => "1.1",
+	          "bytes" => "180",
+	           "path" => "/var/log/apache2/access.log",
+	           "host" => "ELK02",
+	           "auth" => "-",
+	          "agent" => "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\"",
+	       "@version" => "1",
+	        "message" => "192.168.63.1 - - [06/Jun/2019:20:43:38 +0900] \"GET /icons/ubuntu-logo.png HTTP/1.1\" 304 180 \"http://192.168.63.102/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\"",
+	       "clientip" => "192.168.63.1",
+	          "ident" => "-",
+	           "verb" => "GET"
+	}
+
+	2)  ELK-TEST02 > redis-cli monitor 로그
+	
+	1559821419.221195 [0 192.168.63.102:43908] "rpush" "logstash" "{\"type\":\"use-redis\",\"response\":\"304\",\"request\":\"/icons/ubuntu-logo.png\",\"referrer\":\"\\\"http://192.168.63.102/\\\"\",\"timestamp\":\"06/Jun/2019:20:43:38 +0900\",\"@timestamp\":\"2019-06-06T11:43:39.113Z\",\"httpversion\":\"1.1\",\"bytes\":\"180\",\"path\":\"/var/log/apache2/access.log\",\"host\":\"ELK02\",\"auth\":\"-\",\"agent\":\"\\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\\\"\",\"@version\":\"1\",\"message\":\"192.168.63.1 - - [06/Jun/2019:20:43:38 +0900] \\\"GET /icons/ubuntu-logo.png HTTP/1.1\\\" 304 180 \\\"http://192.168.63.102/\\\" \\\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\\\"\",\"clientip\":\"192.168.63.1\",\"ident\":\"-\",\"verb\":\"GET\"}"
+
+	3) ELK-TEST01 > bin/logstash Output 로그
+
+	{
+	           "path" => "/var/log/apache2/access.log",
+	           "host" => "ELK02",
+	       "clientip" => "192.168.63.1",
+	        "request" => "/icons/ubuntu-logo.png",
+	      "timestamp" => "06/Jun/2019:20:43:38 +0900",
+	       "response" => "304",
+	    "httpversion" => "1.1",
+	          "agent" => "\"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\"",
+	       "@version" => "1",
+	        "message" => "192.168.63.1 - - [06/Jun/2019:20:43:38 +0900] \"GET /icons/ubuntu-logo.png HTTP/1.1\" 304 180 "http://192.168.63.102/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0\"",
+	     "@timestamp" => 2019-06-06T11:43:39.113Z,
+	           "auth" => "-",
+	           "type" => "use-redis",
+	          "bytes" => "180",
+	           "verb" => "GET",
+	          "ident" => "-",
+	       "referrer" => "\"http://192.168.63.102/\""
+	}
+
+
+	G. Kibana 확인
+
+	Kibana > Management > Create index pattern : 	apache-access-log-* , @timestamp 
+	> Create index pattern
+	> Discover
 
 
 
