@@ -1,0 +1,178 @@
+ELK+Redis Use Guide
+
+
+
+ㅇ 버젼 : metricbeat-6.7.2
+ㅇ VirtualBox VM : ELK-TEST01, ELK-TEST02
+   - 1 CPU , 2048M Mem, 20G HDD
+   - IP : 192.168.63.101~192.168.63.101 (Host-Only)
+   - IP : 10.0.2.15 (NAT)
+
+
+
+
+# ELK-TEST01(192.168.63.101) 
+
+1. Kibana + Elasticsearch + Logstash + Redis 기동
+
+	A. 재기동
+
+	sudo su -
+	shutdown -r now
+
+
+	B.  elasticsearch Start
+	
+	su - elas
+	cd elasticsearch-6.7.2/
+	./start.sh
+	tail -f /ELK/logs/my-application.log
+
+
+	C. kibana Start
+
+	su - elas
+	cd kibana-6.7.2-linux-x86_64/
+	bin/kibana &
+	
+	Kibana 접속 : http://192.168.63.101:5601
+
+
+	D. logstash Install & Start
+	
+	sudo useradd logst -m -s /bin/bash
+	sudo passwd logst
+
+	sudo vi /etc/sudoers
+	logst   ALL=(ALL:ALL) ALL
+
+	su - logst
+	vi .profile
+	export JAVA_HOME=/usr/local/jdk8
+	
+	source .profile
+	$JAVA_HOME/bin/java -version
+
+	wget https://artifacts.elastic.co/downloads/logstash/logstash-6.7.2.tar.gz
+  	tar -zxvf logstash-6.7.2.tar.gz
+
+	cd logstash-6.7.2/
+
+	vi config/jvm.options
+	-Xms400m
+	-Xmx400m
+
+	vi config/logstash-redis.conf
+	input {
+		redis {
+			host => "192.168.63.102"
+			port => 6379
+			codec => "json"
+			data_type => "list"
+			key => "logstash"
+		}
+	}
+
+	output {
+		elasticsearch {
+			hosts => [ "192.168.63.101:9200" ]
+			index => "apache-access-log-%{+yyyy.MM.dd.HH}"
+		}
+		stdout{}
+	}
+
+	bin/logstash -f config/logstash-redis.conf --config.reload.automatic
+
+
+
+
+
+
+# ELK-TEST02(192.168.63.102) 
+
+
+1. Logstash + Redis + apache 기동
+
+	A. 재기동
+
+	sudo su -
+	shutdown -r now
+
+
+	B. Redis Install & Start
+	
+	su - elas
+	sudo apt-get update
+	sudo apt-get install redis-server
+
+	redis-server --version
+
+	sudo vi /etc/redis/redis.conf 
+	bind 192.168.63.102 127.0.0.1
+
+	sudo systemctl start redis-server
+	sudo systemctl status redis-server
+
+
+	C. apache Start
+
+	sudo systemctl start apache2
+	sudo systemctl status apache2
+
+
+	D. logstash Install & Start
+	
+	sudo useradd logst -m -s /bin/bash
+	sudo passwd logst
+
+	sudo vi /etc/sudoers
+	logst   ALL=(ALL:ALL) ALL
+
+	su - logst
+	vi .profile
+	export JAVA_HOME=/usr/local/jdk8
+	
+	source .profile
+	$JAVA_HOME/bin/java -version
+
+	wget https://artifacts.elastic.co/downloads/logstash/logstash-6.7.2.tar.gz
+  	tar -zxvf logstash-6.7.2.tar.gz
+
+	cd logstash-6.7.2/
+
+	vi config/jvm.options
+	-Xms400m
+	-Xmx400m
+
+	vi config/logstash-redis2.conf
+	input {
+		file {
+			path => "/var/log/apache2/*.log"
+			#codec => "json"
+			type => "logback"
+			#sincedb_path => "/dev/null"
+		}
+	}
+	filter {
+		grok {
+			match => { "message" => "%{HTTPD_COMBINEDLOG}"}
+		}
+	}
+	output {
+		redis {
+			host => ["192.168.63.102:6379"]
+			data_type => "list"
+			key => "logstash"
+		}
+		stdout{}
+	}
+
+	bin/logstash -f config/logstash-redis2.conf --config.reload.automatic
+
+
+	E. apache 접속 및 여러번 refresh
+
+	http://192.168.63.102/
+
+
+
